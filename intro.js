@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { createDinosaur } from '/dinosaur.js';
+import { openingShot } from './camera-motion.js';
 
 const overlay=document.querySelector('#opening');
 const canvas=document.querySelector('#opening-scene');
@@ -162,7 +163,12 @@ function draw(time){
  if(t>=14){title.classList.add('visible');enter.hidden=false;}
  const width=canvas.clientWidth,height=canvas.clientHeight;
  if(canvas.width!==Math.floor(width*renderer.getPixelRatio())||canvas.height!==Math.floor(height*renderer.getPixelRatio()))renderer.setSize(width,height,false);camera.aspect=width/height;
- camera.position.z=width/height<.7?25:16;camera.lookAt(0,2.8,-2);camera.updateProjectionMatrix();renderer.render(scene,camera);
+ const shot=openingShot(elapsed,{mobile:width/height<.7,reduced:reduceMotion});
+ camera.position.set(...shot.position);camera.lookAt(...shot.target);camera.fov=shot.fov;
+ face.style.setProperty('--sleep-parallax',`${(1-shot.progress)*28}px`);
+ face.style.setProperty('--sleep-scale',String(1.04-shot.progress*.04));
+ overlay.dataset.shot=shot.progress>=1?'settled':'moving';
+ camera.updateProjectionMatrix();renderer.render(scene,camera);
 }
 requestAnimationFrame(draw);
 }

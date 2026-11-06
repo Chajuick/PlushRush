@@ -24,6 +24,9 @@ function initialize() {
   const scene = new THREE.Scene(); scene.background=new THREE.Color('#e8f1e7');
   scene.fog=new THREE.Fog('#e8f1e7',35,105);
   const camera = new THREE.PerspectiveCamera(51,1,0.1,140);
+  camera.position.set(0,5.3,10);
+  const cameraTarget=new THREE.Vector3(0,1.1,-12);
+  const reducedMotion=matchMedia('(prefers-reduced-motion: reduce)').matches;
   scene.add(new THREE.HemisphereLight(0xfffaf0,0x779b80,2.7));
   const sun = new THREE.DirectionalLight(0xfff2da,3);sun.position.set(-10,20,10);sun.castShadow=true;
   sun.shadow.mapSize.set(1024,1024);sun.shadow.camera.left=-12;sun.shadow.camera.right=12;
@@ -145,7 +148,15 @@ function initialize() {
     }
     character.position.set(x,y,0);character.rotation.z=(x-targetX)*0.08;
     character.userData.animate(time/1000,mode==='running',y>0);
-    camera.position.set(x*0.25,5.3,10);camera.lookAt(x*0.35,1.1,-12);
+    // Follow inertia and slight jump lift; avoid camera shake and excessive roll.
+    const desiredX=x*.35+(targetX-x)*.08;
+    camera.position.x=THREE.MathUtils.damp(camera.position.x,desiredX,5,dt);
+    camera.position.y=THREE.MathUtils.damp(camera.position.y,5.3+(reducedMotion?0:y*.18),4,dt);
+    camera.position.z=THREE.MathUtils.damp(camera.position.z,mode==='running'&&!reducedMotion?9.4:10,3,dt);
+    cameraTarget.x=THREE.MathUtils.damp(cameraTarget.x,x*.5,6,dt);
+    cameraTarget.y=THREE.MathUtils.damp(cameraTarget.y,1.1+(reducedMotion?0:y*.1),4,dt);
+    camera.fov=THREE.MathUtils.damp(camera.fov,mode==='running'&&!reducedMotion?53:51,3,dt);
+    camera.lookAt(cameraTarget);
     const width=canvas.clientWidth,height=canvas.clientHeight;
     if(canvas.width!==Math.floor(width*renderer.getPixelRatio())||canvas.height!==Math.floor(height*renderer.getPixelRatio()))renderer.setSize(width,height,false);
     camera.aspect=width/height;camera.updateProjectionMatrix();renderer.render(scene,camera);

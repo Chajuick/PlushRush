@@ -1,14 +1,15 @@
 {
   "name": "plush-rush",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "start": "vite --host 0.0.0.0",
-    "check": "node --check game.js && node --check dinosaur.js && node --check intro.js && node --check updates.js && node --check vite.config.js",
+    "check": "node --check game.js && node --check dinosaur.js && node --check intro.js && node --check updates.js && node --check vite.config.js && node --check camera-motion.js",
     "build": "vite build",
-    "preview": "vite preview --host 0.0.0.0"
+    "preview": "vite preview --host 0.0.0.0",
+    "test": "node --test tests/camera-motion.test.js"
   },
   "engines": {
     "node": ">=22"
