@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PlushRush · 구름 위의 작은 모험</title>
+  <link rel="stylesheet" href="/style.css">
+  <script type="module" src="/game.js"></script>
+</head>
+<body>
+  <main>
+    <header><a href="/" class="brand">☁ PlushRush</a><span>작은 점프, 커다란 모험</span></header>
+    <section class="intro"><p class="eyebrow">A LITTLE CLOUD ADVENTURE</p><h1>오늘은 어디까지<br>달려볼까요?</h1><p>폭신한 친구와 함께 장애물을 뛰어넘어 보세요.</p></section>
+    <section class="game" aria-label="러닝 게임">
+      <div class="scoreboard"><span>거리 <strong id="score">0</strong> m</span><span>최고 기록 <strong id="best">0</strong> m</span></div>
+      <canvas id="game" width="960" height="400" aria-label="스페이스 키 또는 점프 버튼으로 장애물을 피하는 게임"></canvas>
+      <div class="controls"><p id="status" role="status">준비됐나요? 점프하면 출발해요!</p><button id="jump" type="button">점프 / 시작 ↗</button></div>
+    </section>
+    <footer>SPACE · ↑ · 화면 터치로 점프 <span>넘어져도 괜찮아요. 다시 달리면 되니까요.</span></footer>
+  </main>
+</body>
+</html>
