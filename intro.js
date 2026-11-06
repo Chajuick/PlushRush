@@ -52,10 +52,22 @@ const starPositions=[];
 for(let i=0;i<120;i++)starPositions.push((random()-.5)*46,3+random()*15,-12-random()*23);
 const starGeometry=new THREE.BufferGeometry();starGeometry.setAttribute('position',new THREE.Float32BufferAttribute(starPositions,3));
 const stars=new THREE.Points(starGeometry,new THREE.PointsMaterial({color:'#ffe8bd',size:.055,sizeAttenuation:true,transparent:true,opacity:.8}));scene.add(stars);
-for(let i=0;i<100;i++){
- const grass=new THREE.Mesh(new THREE.ConeGeometry(0.10,0.65+random()*0.6,3),material(i%3?'#3d5960':'#647475'));
- grass.position.set((random()-.5)*34,0,-random()*32);grass.rotation.z=(random()-.5)*.35;scene.add(grass);
+// Curved tapered grass ribbons are instanced instead of scattered cones.
+const bladeGeometry=new THREE.PlaneGeometry(.10,.7,1,5);
+const bp=bladeGeometry.attributes.position;
+for(let i=0;i<bp.count;i++){
+ const h=(bp.getY(i)+.35)/.7;
+ bp.setXYZ(i,bp.getX(i)*(1-h*.95)+h*h*.17,h*.7,h*h*.12);
 }
+bladeGeometry.computeVertexNormals();
+const bladeMaterial=new THREE.MeshStandardMaterial({color:'#668479',roughness:1,side:THREE.DoubleSide});
+const blades=new THREE.InstancedMesh(bladeGeometry,bladeMaterial,900),transform=new THREE.Object3D();
+for(let i=0;i<900;i++){
+ const x=(random()-.5)*30,z=5-random()*35;
+ transform.position.set(x,Math.abs(x)<2.5?-.8:0,z);transform.rotation.set(0,random()*Math.PI*2,(random()-.5)*.2);transform.scale.setScalar(.4+random()*.9);transform.updateMatrix();blades.setMatrixAt(i,transform.matrix);
+ blades.setColorAt(i,new THREE.Color().setHSL(.38+random()*.07,.16,.20+random()*.14));
+}
+scene.add(blades);
 const petalMaterial=material('#e9dfeb'),flowerCenter=material('#efd399'),stemMaterial=material('#54756c');
 const petalGeometry=new THREE.SphereGeometry(1,8,6);
 for(let i=0;i<100;i++){
@@ -73,7 +85,8 @@ for(let i=0;i<100;i++){
 for(let i=0;i<9;i++)sphere(scene,[Math.sin(i)*.55,-.02,4-i*.8],[1,.07,.5],material('#62746c'));
 function portal(x,y,z,color){
  const group=new THREE.Group();group.position.set(x,y,z);scene.add(group);
- const ring=new THREE.Mesh(new THREE.TorusGeometry(1.55,0.17,16,96),new THREE.MeshStandardMaterial({color,roughness:.85,emissive:color,emissiveIntensity:.65}));group.add(ring);
+ const rim=[];for(let i=0;i<=96;i++){const a=i/96*Math.PI*2,r=1.55+Math.sin(a*5)*.045+Math.cos(a*3)*.035;rim.push(new THREE.Vector3(Math.cos(a)*r,Math.sin(a)*r,Math.sin(a*4)*.045));}
+ const ring=new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(rim,true),128,.105,12,true),new THREE.MeshStandardMaterial({color,roughness:.85,emissive:color,emissiveIntensity:.65}));group.add(ring);
  for(let i=0;i<64;i++){
   const a=i/64*Math.PI*2;
   const stitch=new THREE.Mesh(new THREE.CapsuleGeometry(.018,.065,3,5),new THREE.MeshBasicMaterial({color:'#fff0c2'}));
@@ -83,7 +96,11 @@ function portal(x,y,z,color){
  const context=haloCanvas.getContext('2d'),gradient=context.createRadialGradient(64,64,0,64,64,64);
  gradient.addColorStop(0,'rgba(255,223,160,.32)');gradient.addColorStop(.5,'rgba(255,210,140,.15)');gradient.addColorStop(1,'rgba(255,210,140,0)');context.fillStyle=gradient;context.fillRect(0,0,128,128);
  const halo=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(haloCanvas),transparent:true,depthWrite:false,blending:THREE.AdditiveBlending}));halo.scale.set(6,6,1);group.add(halo);
- const haze=new THREE.Mesh(new THREE.CircleGeometry(1.5,64),new THREE.MeshBasicMaterial({color,transparent:true,opacity:.16,side:THREE.DoubleSide,depthWrite:false}));group.add(haze);
+ const haze=new THREE.Mesh(new THREE.CircleGeometry(1.5,64),new THREE.ShaderMaterial({
+  transparent:true,depthWrite:false,side:THREE.DoubleSide,uniforms:{tint:{value:new THREE.Color(color)}},
+  vertexShader:'varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
+  fragmentShader:'uniform vec3 tint;varying vec2 vUv;void main(){float r=length(vUv-.5)*2.;float mist=sin(vUv.y*18.+sin(vUv.x*12.)*2.)*.5+.5;float alpha=(.12+mist*.08)*(1.-smoothstep(.75,1.,r));gl_FragColor=vec4(tint,alpha);}'
+ }));group.add(haze);
  const inner=new THREE.Mesh(new THREE.TorusGeometry(1.35,.025,6,64),new THREE.MeshBasicMaterial({color:'#fff2d4'}));inner.position.z=.03;group.add(inner);
  return group;
 }
@@ -138,7 +155,7 @@ function draw(time){
  dolls.forEach((d,i)=>{
   const f=THREE.MathUtils.smoothstep(t,7+i*.45,10+i*.45);
   d.visible=f>0;d.position.set([0,-2.2,2.2][i]*f,.15+Math.sin(f*Math.PI)*1.2,-1.8+f*[4.4,3.2,3.2][i]);
-  d.rotation.y=-.18;d.userData.animate(reduceMotion?0:Math.min(elapsed,4),false,false);
+  d.rotation.y=-.42;d.userData.animate(reduceMotion?0:Math.min(elapsed,4),false,false);
  });
  face.classList.toggle('peaceful',relief>.6);
  stars.material.opacity=.7+Math.sin(t*.5)*.12;

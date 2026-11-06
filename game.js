@@ -29,7 +29,12 @@ function initialize() {
   sun.shadow.mapSize.set(1024,1024);sun.shadow.camera.left=-12;sun.shadow.camera.right=12;
   sun.shadow.camera.top=16;sun.shadow.camera.bottom=-16;scene.add(sun);
   const material=color=>new THREE.MeshStandardMaterial({color,roughness:0.95});
-  const roadMaterial=material('#eadfc6'), grass=material('#bcd4aa'), border=material('#f8f1dd');
+  const roadCanvas=document.createElement('canvas');roadCanvas.width=roadCanvas.height=512;const paint=roadCanvas.getContext('2d');
+  paint.fillStyle='#d8cbb0';paint.fillRect(0,0,512,512);let seed=97;const random=()=>{seed=(seed*16807)%2147483647;return(seed-1)/2147483646;};
+  for(let i=0;i<6000;i++){paint.fillStyle=i%2?'#e0d3ba':'#ccbea2';paint.fillRect(random()*512,random()*512,1+random()*2,1+random()*2);}
+  for(let i=0;i<25;i++){paint.fillStyle='#c4b69a';paint.beginPath();paint.ellipse(random()*512,random()*512,2+random()*3,1+random(),random()*3,0,Math.PI*2);paint.fill();}
+  const roadTexture=new THREE.CanvasTexture(roadCanvas);roadTexture.colorSpace=THREE.SRGBColorSpace;roadTexture.wrapS=roadTexture.wrapT=THREE.RepeatWrapping;roadTexture.repeat.set(2,28);roadTexture.anisotropy=4;
+  const roadMaterial=new THREE.MeshStandardMaterial({map:roadTexture,roughness:1}), grass=material('#b1c59a'), border=material('#d6d5ba');
   function box(w,h,d,mat,x,y,z) {
     const mesh=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);
     mesh.position.set(x,y,z);mesh.receiveShadow=true;scene.add(mesh);return mesh;
@@ -43,7 +48,10 @@ function initialize() {
   for(let i=0;i<32;i++) {
     const tree=new THREE.Group();
     const trunk=new THREE.Mesh(new THREE.CylinderGeometry(0.16,0.23,1.5,8),trunkMaterial);trunk.position.y=0.75;tree.add(trunk);
-    const crown=new THREE.Mesh(new THREE.SphereGeometry(1,16,12),treeMaterial);crown.scale.set(1.1,1.6,1.1);crown.position.y=2.5;crown.castShadow=true;tree.add(crown);
+    for(const [x,y,z,size] of [[0,2.8,0,1.05],[-.65,2.3,.15,.78],[.65,2.4,.1,.83],[.15,2.2,-.55,.85]]){
+      const crown=new THREE.Mesh(new THREE.IcosahedronGeometry(size,2),treeMaterial);crown.scale.set(1,1.12,.94);crown.position.set(x,y,z);crown.castShadow=true;tree.add(crown);
+    }
+    const branch=new THREE.Mesh(new THREE.CylinderGeometry(.075,.12,.9,6),trunkMaterial);branch.position.set(.27,1.6,0);branch.rotation.z=-.65;tree.add(branch);
     tree.position.set((i%2?1:-1)*(6.5+(i%4)*0.7),0,-i*4);scene.add(tree);scenery.push(tree);
   }
   const markers=[];
@@ -111,7 +119,7 @@ function initialize() {
     if(document.hidden||document.body.classList.contains('watching-intro')){previous=undefined;keys.clear();requestAnimationFrame(render);return;}
     const dt=previous===undefined?0:Math.min((time-previous)/1000,0.04);previous=time;
     if(mode==='running'){
-      const speed=13;distance+=speed*dt;
+      const speed=13;distance+=speed*dt;roadTexture.offset.y=-distance/5;
       if(keys.has('ArrowLeft')||keys.has('KeyA'))targetX-=7*dt;
       if(keys.has('ArrowRight')||keys.has('KeyD'))targetX+=7*dt;
       targetX=THREE.MathUtils.clamp(targetX,-3.6,3.6);
