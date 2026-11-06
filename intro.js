@@ -20,10 +20,11 @@ enter.addEventListener('click',finish);
 document.querySelector('#replay-intro').addEventListener('click',()=>{
   overlay.hidden=false;active=true;elapsed=0;previous=undefined;
   document.body.classList.add('watching-intro');document.querySelector('main').inert=true;
-  title.classList.remove('visible');enter.hidden=!!renderer;document.querySelector('#skip-intro').focus();
+  title.classList.add('visible');enter.hidden=false;document.querySelector('#skip-intro').focus();
 });
 document.querySelector('main').inert=true;
-document.querySelector('#skip-intro').focus();
+title.classList.add('visible');enter.hidden=false;
+document.querySelector('#enter-game').focus();
 
 if(renderer){
 renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.0;renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
@@ -82,18 +83,6 @@ function portal(x,y,z,color){
  const context=haloCanvas.getContext('2d'),gradient=context.createRadialGradient(64,64,0,64,64,64);
  gradient.addColorStop(0,'rgba(255,223,160,.32)');gradient.addColorStop(.5,'rgba(255,210,140,.15)');gradient.addColorStop(1,'rgba(255,210,140,0)');context.fillStyle=gradient;context.fillRect(0,0,128,128);
  const halo=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(haloCanvas),transparent:true,depthWrite:false,blending:THREE.AdditiveBlending}));halo.scale.set(6,6,1);group.add(halo);
- if(color==='#f2d18f'){
-  const leafMaterial=material('#91b29b'),petals=material('#f5ddbb');
-  for(let i=0;i<7;i++){
-   const a=i*.68+.1;
-   const leaf=sphere(group,[Math.cos(a)*1.7,Math.sin(a)*1.7,.05],[.16,.075,.045],leafMaterial);leaf.rotation.z=a+.7;
-  }
-  for(const a of [.7,2.7,4.4]){
-   const flower=new THREE.Group();flower.position.set(Math.cos(a)*1.55,Math.sin(a)*1.55,.19);
-   for(let j=0;j<5;j++){const b=j*Math.PI*2/5;const petal=sphere(flower,[Math.cos(b)*.10,Math.sin(b)*.10,0],[.09,.065,.04],petals);petal.rotation.z=b;}
-   sphere(flower,[0,0,.025],[.055,.055,.04],material('#d9ae6b'));group.add(flower);
-  }
- }
  const haze=new THREE.Mesh(new THREE.CircleGeometry(1.5,64),new THREE.MeshBasicMaterial({color,transparent:true,opacity:.16,side:THREE.DoubleSide,depthWrite:false}));group.add(haze);
  const inner=new THREE.Mesh(new THREE.TorusGeometry(1.35,.025,6,64),new THREE.MeshBasicMaterial({color:'#fff2d4'}));inner.position.z=.03;group.add(inner);
  return group;
@@ -115,9 +104,7 @@ function makeGhost(){
 }
 const ghosts=Array.from({length:6},makeGhost);
 const dolls=[];
-for(let i=0;i<3;i++){const doll=createDinosaur({color:['#9dce9a','#d5afbf','#c7b9e6'][i]});doll.scale.setScalar(i===0?1.3:.85);scene.add(doll);dolls.push(doll);}
-const sparks=[];
-for(let i=0;i<30;i++)sparks.push(sphere(scene,[0,0,0],[.045,.045,.045],new THREE.MeshBasicMaterial({color:i%2?'#ffe8ad':'#b8e7c4'})));
+for(let i=0;i<1;i++){const doll=createDinosaur({color:['#9dce9a','#d5afbf','#c7b9e6'][i]});doll.scale.setScalar(i===0?1.3:.85);scene.add(doll);dolls.push(doll);}
 // Vector foreground keeps the cropped sleeping face legible on small screens.
 const face=document.querySelector('#sleeping-face');
 let lastCaption='';
@@ -127,15 +114,16 @@ function draw(time){
  if(!active||document.hidden){previous=undefined;return;}
  const dt=previous===undefined?0:Math.min((time-previous)/1000,.05);previous=time;
  if(!document.hidden)elapsed+=dt;
- const t=reduceMotion?18:elapsed;
- const phase=t<3?1:t<6?2:t<9?3:t<13?4:5;
+ const t=reduceMotion?18:Math.min(18,elapsed*4.5);
+ const phase=t<9?1:5;
  if(lastCaption!==captions[phase]){caption.textContent=captions[phase];lastCaption=captions[phase];}
  const reveal=THREE.MathUtils.smoothstep(t,6,9);
  const relief=THREE.MathUtils.smoothstep(t,10,15);
+ nightmare.visible=relief<.9;
  nightmare.scale.setScalar((1-relief*.85)*(1+Math.sin(t*2)*.025));
  nightmare.rotation.z=Math.sin(t*.7)*.05;
  plushPortal.scale.setScalar(Math.max(.001,reveal*1.4));plushPortal.rotation.z=Math.sin(t*.3)*.035;
- glow.intensity=reveal*18;
+ glow.intensity=reveal*10;
  for(let i=0;i<darkClouds.length;i++){
   const p=darkClouds[i],f=(t*.16+i/12)%1;
   p.position.set(Math.sin(i*2+f*4)*(f*2+.2),.1+f*5,6-f*10);
@@ -150,11 +138,7 @@ function draw(time){
  dolls.forEach((d,i)=>{
   const f=THREE.MathUtils.smoothstep(t,7+i*.45,10+i*.45);
   d.visible=f>0;d.position.set([0,-2.2,2.2][i]*f,.15+Math.sin(f*Math.PI)*1.2,-1.8+f*[4.4,3.2,3.2][i]);
-  d.rotation.y=Math.sin(t+i)*.18;d.userData.animate(t,t<13,false);
- });
- sparks.forEach((s,i)=>{
-  const f=(t*.35+i/30)%1,angle=i*2.399+t*.3;
-  s.visible=reveal>.1;s.position.set(Math.cos(angle)*(1+f*3),2+Math.sin(angle)*1.7+f,-1+f*3);s.scale.setScalar(.045*(1-f)*reveal);
+  d.rotation.y=-.18;d.userData.animate(reduceMotion?0:Math.min(elapsed,4),false,false);
  });
  face.classList.toggle('peaceful',relief>.6);
  stars.material.opacity=.7+Math.sin(t*.5)*.12;
