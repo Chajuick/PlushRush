@@ -8,14 +8,24 @@ const button = document.querySelector('#jump');
 const scoreLabel = document.querySelector('#score');
 const bestLabel = document.querySelector('#best');
 let renderer, preview;
-try {
-  preview = createCharacterView(document.querySelector('#portrait'), {preview:true});
-  renderer = new THREE.WebGLRenderer({canvas,antialias:true});
-} catch {
-  status.textContent = '3D 게임에는 WebGL을 지원하는 브라우저가 필요해요.';
-  button.disabled = true;
+function showUnavailable(message) {
+  status.textContent=message;
+  document.querySelector('#run-panel').hidden=false;
+  document.querySelector('#run-panel-title').textContent='3D 화면을 표시할 수 없어요';
+  document.querySelector('#run-panel-copy').textContent=message;
+  document.querySelector('#resume-game').hidden=true;
+  document.querySelector('#pause-game').disabled=true;
+  button.disabled=true;
 }
-if (renderer) initialize();
+function prepareGame(){
+  try { preview = createCharacterView(document.querySelector('#portrait'), {preview:true}); }
+  catch { document.querySelector('#model-status').textContent='이 브라우저에서는 3D 인형을 표시할 수 없어요.'; }
+  try { renderer = new THREE.WebGLRenderer({canvas,antialias:true}); }
+  catch { showUnavailable('WebGL을 지원하는 최신 브라우저에서 열어 주세요.'); }
+  if(renderer)initialize();
+}
+if(document.body.classList.contains('watching-intro'))window.addEventListener('plush:intro-closed',prepareGame,{once:true});
+else prepareGame();
 
 function initialize() {
   renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));
@@ -70,6 +80,14 @@ function initialize() {
   let obstacles=[],mode='ready',distance=0,x=0,targetX=0,y=0,velocity=0,spawn=0.8,previous,best=0;
   try{best=Number(localStorage.getItem('plushrush-3d-best'))||0;}catch{}
   bestLabel.textContent=best;
+  // Read-only state lets browser QA verify movement, rather than merely send keys.
+  Object.defineProperty(canvas,'gameState',{get:()=>Object.freeze({mode,x,targetX,y,distance,velocity})});
+  function focusPlayfield(){
+    canvas.focus({preventScroll:true});
+    const bounds=document.querySelector('.game').getBoundingClientRect();
+    if(bounds.top<0||bounds.bottom>innerHeight)document.querySelector('.game').scrollIntoView({block:'start',behavior:'instant'});
+  }
+
   const keys=new Set();
   const pauseButton=document.querySelector('#pause-game');
   const panel=document.querySelector('#run-panel');
@@ -77,7 +95,7 @@ function initialize() {
   function showPanel(title,copy){panelTitle.textContent=title;document.querySelector('#run-panel-copy').textContent=copy;panel.hidden=false;}
   function pause(){
     if(mode==='running'){mode='paused';keys.clear();showPanel('잠깐 쉬어가요','준비되면 이어 달릴 수 있어요.');pauseButton.textContent='계속하기';}
-    else if(mode==='paused'){mode='running';panel.hidden=true;previous=undefined;pauseButton.textContent='일시 정지';}
+    else if(mode==='paused'){mode='running';panel.hidden=true;previous=undefined;pauseButton.textContent='일시 정지';focusPlayfield();}
   }
   pauseButton.addEventListener('click',pause);
   document.querySelector('#resume-game').addEventListener('click',()=>{if(mode==='paused')pause();else jump();});
@@ -92,14 +110,16 @@ function initialize() {
       status.textContent='좌우로 피하고, 위로 점프해요!';button.textContent='점프 ↗';
     }
     if(y===0)velocity=8;
+    focusPlayfield();
   }
   button.addEventListener('click',jump);
   document.addEventListener('keydown',event=>{
     if(document.body.classList.contains('watching-intro')||document.hidden)return;
     if(event.code==='Escape'){event.preventDefault();pause();return;}
-    if(event.target instanceof HTMLElement && ['BUTTON','INPUT','TEXTAREA'].includes(event.target.tagName))return;
+    if(event.target instanceof HTMLElement && (['INPUT','TEXTAREA','SELECT'].includes(event.target.tagName)||event.target.isContentEditable))return;
+    if(event.target instanceof HTMLButtonElement&&['Space','Enter'].includes(event.code))return;
     if(['ArrowLeft','ArrowRight','KeyA','KeyD','Space','ArrowUp'].includes(event.code)){
-      if(event.target===button && event.code==='Space')return;
+      if(mode!=='running'&&!['Space','ArrowUp'].includes(event.code))return;
       event.preventDefault();keys.add(event.code);
       if(['Space','ArrowUp'].includes(event.code)&&!event.repeat)jump();
     }
@@ -107,19 +127,19 @@ function initialize() {
   document.addEventListener('keyup',event=>keys.delete(event.code));
   window.addEventListener('blur',()=>{keys.clear();if(mode==='running')pause();});
   let touch;
-  canvas.addEventListener('pointerdown',event=>{if(mode!=='running')return;touch={x:event.clientX,y:event.clientY,target:targetX,jumped:false};canvas.setPointerCapture(event.pointerId);});
+  canvas.addEventListener('pointerdown',event=>{if(mode!=='running'||!event.isPrimary)return;focusPlayfield();touch={id:event.pointerId,x:event.clientX,y:event.clientY,target:targetX,jumped:false};canvas.setPointerCapture(event.pointerId);});
   canvas.addEventListener('pointermove',event=>{
-    if(!touch)return;
+    if(!touch||event.pointerId!==touch.id)return;
     const dx=event.clientX-touch.x,dy=event.clientY-touch.y;
     if(!touch.jumped&&dy < -35&&Math.abs(dy)>Math.abs(dx)){jump();touch.jumped=true;}
     if(!touch.jumped)targetX=THREE.MathUtils.clamp(touch.target+dx/canvas.clientWidth*10,-3.6,3.6);
   });
-  const release=()=>{touch=undefined;};
-  canvas.addEventListener('pointerup',release);canvas.addEventListener('pointercancel',release);
+  const release=event=>{if(touch&&event.pointerId===touch.id)touch=undefined;};
+  canvas.addEventListener('pointerup',release);canvas.addEventListener('pointercancel',release);canvas.addEventListener('lostpointercapture',release);
   document.addEventListener('visibilitychange',()=>{previous=undefined;keys.clear();if(document.hidden&&mode==='running')pause();});
-  canvas.addEventListener('webglcontextlost',event=>{event.preventDefault();if(mode==='running')pause();status.textContent='화면 연결이 끊겼어요. 페이지를 새로고침해 주세요.';});
+  canvas.addEventListener('webglcontextlost',event=>{event.preventDefault();mode='unavailable';keys.clear();touch=undefined;showUnavailable('화면 연결이 끊겼어요. 페이지를 새로고침해 주세요.');});
   function render(time){
-    if(document.hidden||document.body.classList.contains('watching-intro')){previous=undefined;keys.clear();requestAnimationFrame(render);return;}
+    if(mode==='unavailable'||document.hidden||document.body.classList.contains('watching-intro')){previous=undefined;keys.clear();requestAnimationFrame(render);return;}
     const dt=previous===undefined?0:Math.min((time-previous)/1000,0.04);previous=time;
     if(mode==='running'){
       const speed=13;distance+=speed*dt;roadTexture.offset.y=-distance/5;

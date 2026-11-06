@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { createDinosaur } from '/dinosaur.js';
 import { openingShot } from './camera-motion.js';
+import { introState } from './intro-timeline.js';
 
 const overlay=document.querySelector('#opening');
 const canvas=document.querySelector('#opening-scene');
@@ -14,6 +15,7 @@ catch { caption.textContent='작은 인형들이 당신의 꿈을 지켜줄 거�
 let active=true,elapsed=0,previous;
 function finish(){
   active=false;overlay.hidden=true;document.body.classList.remove('watching-intro');
+  window.dispatchEvent(new Event('plush:intro-closed'));
   document.querySelector('main').inert=false;document.querySelector('#jump').focus();
 }
 document.querySelector('#skip-intro').addEventListener('click',finish);
@@ -120,9 +122,25 @@ function makeGhost(){
  for(const side of [-1,1]){sphere(g,[side*.17,.2,.33],[.05,.07,.025],material('#39314f'));sphere(g,[side*.47,0,0],[.19,.11,.15],lavender);}
  sphere(g,[0,-.02,.35],[.065,.07,.025],material('#65517e'));scene.add(g);return g;
 }
-const ghosts=Array.from({length:6},makeGhost);
+const ghosts=Array.from({length:2},makeGhost);
 const dolls=[];
-for(let i=0;i<1;i++){const doll=createDinosaur({color:['#9dce9a','#d5afbf','#c7b9e6'][i]});doll.scale.setScalar(i===0?1.3:.85);scene.add(doll);dolls.push(doll);}
+for(let i=0;i<1;i++){const doll=createDinosaur({color:['#9dce9a','#d5afbf','#c7b9e6'][i]});doll.scale.setScalar(1.6);scene.add(doll);dolls.push(doll);}
+// Visible cause/effect: protection pulses travel from the doll to each ghost.
+const pulses=[],bursts=[];
+const pulseMaterial=new THREE.MeshBasicMaterial({color:'#ffe2a0'});
+const pulseCanvas=document.createElement('canvas');pulseCanvas.width=pulseCanvas.height=64;const pc=pulseCanvas.getContext('2d'),pg=pc.createRadialGradient(32,32,0,32,32,32);pg.addColorStop(0,'rgba(255,224,161,.7)');pg.addColorStop(1,'rgba(255,224,161,0)');pc.fillStyle=pg;pc.fillRect(0,0,64,64);const pulseMap=new THREE.CanvasTexture(pulseCanvas);
+const starShape=new THREE.Shape();
+for(let i=0;i<10;i++){const a=i/10*Math.PI*2-Math.PI/2,r=i%2?.42:1;const x=Math.cos(a)*r,y=Math.sin(a)*r;if(i===0)starShape.moveTo(x,y);else starShape.lineTo(x,y);}starShape.closePath();
+const starMeshGeometry=new THREE.ShapeGeometry(starShape);
+const charge=new THREE.Group();charge.add(new THREE.Mesh(new THREE.SphereGeometry(.28,16,12),pulseMaterial));
+const chargeAura=new THREE.Sprite(new THREE.SpriteMaterial({map:pulseMap,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending}));chargeAura.scale.set(1.7,1.7,1);charge.add(chargeAura);scene.add(charge);
+const protectionOrigin=new THREE.Vector3();
+for(let i=0;i<2;i++){
+ const pulse=new THREE.Group();pulse.add(new THREE.Mesh(new THREE.SphereGeometry(.25,16,12),pulseMaterial));const aura=new THREE.Sprite(new THREE.SpriteMaterial({map:pulseMap,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending}));aura.scale.set(1.2,1.2,1);pulse.add(aura);scene.add(pulse);pulses.push(pulse);
+ const group=new THREE.Group();
+ for(let j=0;j<5;j++){const star=new THREE.Mesh(starMeshGeometry,new THREE.MeshBasicMaterial({color:j%2?'#ffe5ac':'#cde9c8',side:THREE.DoubleSide,transparent:true}));star.scale.setScalar(.25);group.add(star);}
+ scene.add(group);bursts.push(group);
+}
 // Vector foreground keeps the cropped sleeping face legible on small screens.
 const face=document.querySelector('#sleeping-face');
 let lastCaption='';
@@ -130,37 +148,49 @@ const captions=['','잠 못 드는 밤, 작은 걱정들이 피어나요.','꿈�
 function draw(time){
  requestAnimationFrame(draw);
  if(!active||document.hidden){previous=undefined;return;}
- const dt=previous===undefined?0:Math.min((time-previous)/1000,.05);previous=time;
+ const dt=previous===undefined?0:Math.min((time-previous)/1000,.1);previous=time;
  if(!document.hidden)elapsed+=dt;
- const t=reduceMotion?18:Math.min(18,elapsed*4.5);
- const phase=t<9?1:5;
+ const state=introState(elapsed,reduceMotion),t=state.time;
+ const relief=state.relief,reveal=state.portal;
+ const phase=t<1.45?1:t<3.1?4:5;
  if(lastCaption!==captions[phase]){caption.textContent=captions[phase];lastCaption=captions[phase];}
- const reveal=THREE.MathUtils.smoothstep(t,6,9);
- const relief=THREE.MathUtils.smoothstep(t,10,15);
- nightmare.visible=relief<.9;
- nightmare.scale.setScalar((1-relief*.85)*(1+Math.sin(t*2)*.025));
- nightmare.rotation.z=Math.sin(t*.7)*.05;
- plushPortal.scale.setScalar(Math.max(.001,reveal*1.4));plushPortal.rotation.z=Math.sin(t*.3)*.035;
- glow.intensity=reveal*10;
+ nightmare.visible=relief<.9;nightmare.scale.setScalar(1-relief*.85);
+ plushPortal.scale.setScalar(Math.max(.001,reveal*1.4));
+ glow.intensity=reveal*(10+state.protect*10);
  for(let i=0;i<darkClouds.length;i++){
-  const p=darkClouds[i],f=(t*.16+i/12)%1;
-  p.position.set(Math.sin(i*2+f*4)*(f*2+.2),.1+f*5,6-f*10);
-  p.scale.setScalar((.25+f*.6)*(1-relief));p.visible=relief<.99;
+   const p=darkClouds[i],f=(t*.3+i/12)%1;
+   p.position.set(Math.sin(i*2+f*4)*(f*1.4+.1),.1+f*5,6-f*10);
+   p.scale.setScalar((.3+f*.6)*(1-relief));p.visible=relief<.99;
  }
+ dolls.forEach(d=>{
+   const f=state.arrival;
+   d.visible=f>0;d.position.set(0,.15+Math.sin(f*Math.PI)*.8,-1.8+f*4.4);
+   d.rotation.y=-.65+state.protect*1.1;
+   d.userData.animate(reduceMotion?1:elapsed,false,false);
+   d.userData.pose({protect:state.protect,land:state.landing,wave:state.wave*(.6+Math.sin(t*12)*.4)});
+ });
+ dolls[0].userData.protectionOrigin(protectionOrigin);
+ charge.visible=state.protect>.05&&t<2.65;charge.position.copy(protectionOrigin);charge.scale.setScalar(.5+state.protect*.5);
  ghosts.forEach((g,i)=>{
-  const emerge=THREE.MathUtils.clamp((t-2-i*.4)/3,0,1);
-  g.visible=t>2+i*.4&&relief<.99;
-  g.position.set(3.9-emerge*(2+i*.7)+relief*(i%2?5:-5),2.5+Math.sin(t*2+i)*.3+relief*3,-7+emerge*(3+i*.7));
-  g.rotation.z=Math.sin(t*2+i)*.12;g.scale.setScalar((1-relief)*(.7+i*.04));
+   const beat=state.ghosts[i];
+   g.visible=t>.1+i*.12&&beat.dissolve<1;
+   g.position.set(3.9-beat.approach*(1.8-i*.65)+beat.recoil*.6,2.7+i*.65+Math.sin(t*4+i)*.10+beat.recoil*.3,-7+beat.approach*6.5);
+   g.rotation.z=beat.recoil*(i?-.7:.7);g.scale.setScalar((1-beat.dissolve)*1.0);
+   const destination=new THREE.Vector3(2.1+i*.65,2.7+i*.65,-.5);
+   const source=protectionOrigin;
+   pulses[i].visible=beat.pulseVisible;
+   pulses[i].position.copy(source).lerp(destination,beat.pulse);
+   pulses[i].scale.setScalar(1+Math.sin(beat.pulse*Math.PI)*.3);
+   bursts[i].visible=beat.burstVisible;bursts[i].position.copy(destination);
+   bursts[i].children.forEach((star,j)=>{
+     const a=j/5*Math.PI*2;star.position.set(Math.cos(a)*beat.burst*.85,Math.sin(a)*beat.burst*.7,0);
+     star.rotation.z=beat.burst*(j%2?2:-2);star.material.opacity=1-beat.burst;
+   });
  });
- dolls.forEach((d,i)=>{
-  const f=THREE.MathUtils.smoothstep(t,7+i*.45,10+i*.45);
-  d.visible=f>0;d.position.set([0,-2.2,2.2][i]*f,.15+Math.sin(f*Math.PI)*1.2,-1.8+f*[4.4,3.2,3.2][i]);
-  d.rotation.y=-.42;d.userData.animate(reduceMotion?0:Math.min(elapsed,4),false,false);
- });
+ overlay.dataset.beat=t<1.45?'arrival':t<2.05?'protect':t<2.8?'impact':t<3.35?'relief':'settled';
  face.classList.toggle('peaceful',relief>.6);
  stars.material.opacity=.7+Math.sin(t*.5)*.12;
- if(t>=14){title.classList.add('visible');enter.hidden=false;}
+ if(t>=4){title.classList.add('visible');enter.hidden=false;}
  const width=canvas.clientWidth,height=canvas.clientHeight;
  if(canvas.width!==Math.floor(width*renderer.getPixelRatio())||canvas.height!==Math.floor(height*renderer.getPixelRatio()))renderer.setSize(width,height,false);camera.aspect=width/height;
  const shot=openingShot(elapsed,{mobile:width/height<.7,reduced:reduceMotion});

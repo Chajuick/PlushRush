@@ -20,3 +20,8 @@ test('mobile retains the shot but increases framing distance; reduced motion is 
   assert.ok(openingShot(2,{mobile:true}).position[2]>openingShot(2).position[2]);
   assert.deepEqual(openingShot(0,{reduced:true}),openingShot(4,{reduced:true}));
 });
+
+test('opening camera eases to rest instead of snapping to a stop',()=>{
+  const end=openingShot(4),near=openingShot(3.999);
+  assert.ok(Math.hypot(...end.position.map((v,i)=>v-near.position[i]))<.00001);
+});
