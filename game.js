@@ -18,7 +18,8 @@ try {
 if (renderer) initialize();
 
 function initialize() {
-  renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+  renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));
+  renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.1;
   renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap;
   const scene = new THREE.Scene(); scene.background=new THREE.Color('#e8f1e7');
   scene.fog=new THREE.Fog('#e8f1e7',35,105);
@@ -48,21 +49,44 @@ function initialize() {
   const markers=[];
   for(let i=0;i<35;i++) for(const side of [-1,1]) markers.push(box(0.05,0.015,1.2,border,side*1.5,0.005,-i*4));
   const obstacleMaterial=material('#c89879');
-  const obstacleGeometry=new THREE.BoxGeometry(1.45,1.05,1.1);
+  const obstacleGeometry=new THREE.CapsuleGeometry(.5,.45,5,12);
+  obstacleGeometry.rotateZ(Math.PI/2);
+  const bushMaterial=material('#85ad8b');
+  for(let i=0;i<40;i++){
+    const bush=new THREE.Mesh(new THREE.SphereGeometry(1,12,8),bushMaterial);
+    bush.scale.set(.6+(i%3)*.15,.35,.6);bush.position.set((i%2?1:-1)*(5.3+(i%3)),.25,-i*3.4);scene.add(bush);scenery.push(bush);
+  }
   let obstacles=[],mode='ready',distance=0,x=0,targetX=0,y=0,velocity=0,spawn=0.8,previous,best=0;
   try{best=Number(localStorage.getItem('plushrush-3d-best'))||0;}catch{}
   bestLabel.textContent=best;
   const keys=new Set();
+  const pauseButton=document.querySelector('#pause-game');
+  const panel=document.querySelector('#run-panel');
+  const panelTitle=document.querySelector('#run-panel-title');
+  function showPanel(title,copy){panelTitle.textContent=title;document.querySelector('#run-panel-copy').textContent=copy;panel.hidden=false;}
+  function pause(){
+    if(mode==='running'){mode='paused';keys.clear();showPanel('잠깐 쉬어가요','준비되면 이어 달릴 수 있어요.');pauseButton.textContent='계속하기';}
+    else if(mode==='paused'){mode='running';panel.hidden=true;previous=undefined;pauseButton.textContent='일시 정지';}
+  }
+  pauseButton.addEventListener('click',pause);
+  document.querySelector('#resume-game').addEventListener('click',()=>{if(mode==='paused')pause();else jump();});
+  showPanel('작은 발걸음, 큰 모험','좌우로 움직이고 점프하며 길을 달려보세요.');
+
   function jump() {
+    if(mode==='paused'){pause();return;}
     if(mode!=='running') {
       for(const obstacle of obstacles)scene.remove(obstacle);
       obstacles=[];mode='running';distance=0;x=targetX=0;y=velocity=0;spawn=0.8;
+      panel.hidden=true;pauseButton.disabled=false;pauseButton.textContent='일시 정지';document.querySelector('#resume-game').textContent='이어서 달리기';
       status.textContent='좌우로 피하고, 위로 점프해요!';button.textContent='점프 ↗';
     }
     if(y===0)velocity=8;
   }
   button.addEventListener('click',jump);
   document.addEventListener('keydown',event=>{
+    if(document.body.classList.contains('watching-intro')||document.hidden)return;
+    if(event.code==='Escape'){event.preventDefault();pause();return;}
+    if(event.target instanceof HTMLElement && ['BUTTON','INPUT','TEXTAREA'].includes(event.target.tagName))return;
     if(['ArrowLeft','ArrowRight','KeyA','KeyD','Space','ArrowUp'].includes(event.code)){
       if(event.target===button && event.code==='Space')return;
       event.preventDefault();keys.add(event.code);
@@ -70,9 +94,9 @@ function initialize() {
     }
   });
   document.addEventListener('keyup',event=>keys.delete(event.code));
-  window.addEventListener('blur',()=>keys.clear());
+  window.addEventListener('blur',()=>{keys.clear();if(mode==='running')pause();});
   let touch;
-  canvas.addEventListener('pointerdown',event=>{touch={x:event.clientX,y:event.clientY,target:targetX,jumped:false};canvas.setPointerCapture(event.pointerId);});
+  canvas.addEventListener('pointerdown',event=>{if(mode!=='running')return;touch={x:event.clientX,y:event.clientY,target:targetX,jumped:false};canvas.setPointerCapture(event.pointerId);});
   canvas.addEventListener('pointermove',event=>{
     if(!touch)return;
     const dx=event.clientX-touch.x,dy=event.clientY-touch.y;
@@ -81,9 +105,10 @@ function initialize() {
   });
   const release=()=>{touch=undefined;};
   canvas.addEventListener('pointerup',release);canvas.addEventListener('pointercancel',release);
-  document.addEventListener('visibilitychange',()=>{previous=undefined;keys.clear();});
+  document.addEventListener('visibilitychange',()=>{previous=undefined;keys.clear();if(document.hidden&&mode==='running')pause();});
+  canvas.addEventListener('webglcontextlost',event=>{event.preventDefault();if(mode==='running')pause();status.textContent='화면 연결이 끊겼어요. 페이지를 새로고침해 주세요.';});
   function render(time){
-    if(document.body.classList.contains('watching-intro')){previous=undefined;keys.clear();requestAnimationFrame(render);return;}
+    if(document.hidden||document.body.classList.contains('watching-intro')){previous=undefined;keys.clear();requestAnimationFrame(render);return;}
     const dt=previous===undefined?0:Math.min((time-previous)/1000,0.04);previous=time;
     if(mode==='running'){
       const speed=13;distance+=speed*dt;
@@ -102,6 +127,7 @@ function initialize() {
         if(Math.abs(obstacle.position.z)<0.9&&Math.abs(obstacle.position.x-x)<1.17&&y<0.93){
           mode='over';best=Math.max(best,Math.floor(distance));bestLabel.textContent=best;
           try{localStorage.setItem('plushrush-3d-best',String(best));}catch{}
+          showPanel('괜찮아요, 한 번 더!',`${Math.floor(distance)}m를 달렸어요. 최고 기록 ${best}m`);document.querySelector('#resume-game').textContent='다시 달리기';pauseButton.disabled=true;
           status.textContent=`${Math.floor(distance)}m 달렸어요! 다시 도전해 볼까요?`;button.textContent='다시 시작 ↗';break;
         }
       }
@@ -115,7 +141,7 @@ function initialize() {
     const width=canvas.clientWidth,height=canvas.clientHeight;
     if(canvas.width!==Math.floor(width*renderer.getPixelRatio())||canvas.height!==Math.floor(height*renderer.getPixelRatio()))renderer.setSize(width,height,false);
     camera.aspect=width/height;camera.updateProjectionMatrix();renderer.render(scene,camera);
-    preview?.draw(time/1000);
+    if(document.querySelector('.character-card').getBoundingClientRect().bottom>0)preview?.draw(time/1000);
     requestAnimationFrame(render);
   }
   requestAnimationFrame(render);

@@ -40,14 +40,14 @@
   </aside>
   <main>
     <header><a href="/" class="brand">☁ PlushRush</a><button id="replay-intro" class="replay" type="button">이야기 다시 보기 ✧</button></header>
-    <section class="intro"><p class="eyebrow">A LITTLE CLOUD ADVENTURE</p><h1>오늘은 어디까지<br>달려볼까요?</h1><p>콩알만큼 동글동글한 공룡 인형과 함께 달려요.</p></section>
+    <section class="intro"><p class="eyebrow">YOUR LITTLE DREAMKEEPER</p><h1>작은 친구와 함께,<br>꿈 너머로 달려요.</h1><p>주머니 속 작은 용기가, 오늘은 너의 곁에서 달려요.</p></section>
     <section class="character-card" aria-label="기본 캐릭터 소개">
       <div class="portrait"><canvas id="portrait" aria-label="드래그해서 돌려볼 수 있는 3D 공룡 인형"></canvas></div>
       <div class="character-copy"><p class="eyebrow">YOUR FIRST PLUSH FRIEND</p><h2>작고 동글한<br>공룡 친구</h2><p>머리부터 몸까지 하나로 이어진 콩알 실루엣.<br>콩알 같은 공룡 인형이 모험에 함께해요.</p><span class="character-tag">기본 캐릭터 · 3D 봉제 인형</span><p id="model-status" class="model-hint">인형을 좌우로 드래그해서 돌려보세요 ↔</p></div>
     </section>
     <section class="game" aria-label="러닝 게임">
-      <div class="scoreboard"><span>거리 <strong id="score">0</strong> m</span><span>최고 기록 <strong id="best">0</strong> m</span></div>
-      <div class="playfield"><canvas id="game" width="960" height="600" aria-label="좌우 이동과 점프로 장애물을 피하는 후방 시점 3D 러닝 게임"></canvas></div>
+      <div class="scoreboard"><span>거리 <strong id="score">0</strong> m</span><span>최고 기록 <strong id="best">0</strong> m</span><button id="pause-game" type="button" disabled aria-label="게임 일시 정지 또는 계속하기">일시 정지</button></div>
+      <div class="playfield"><canvas id="game" width="960" height="600" aria-label="좌우 이동과 점프로 장애물을 피하는 후방 시점 3D 러닝 게임"></canvas><div id="run-panel" class="run-panel"><div class="run-panel-inner"><span class="eyebrow">LITTLE STEPS, BIG DREAMS</span><h2 id="run-panel-title">작은 발걸음, 큰 모험</h2><p id="run-panel-copy"></p><button id="resume-game" type="button">달리기 시작 →</button><span class="input-hint">← → 이동 · SPACE 점프<br>모바일: 좌우 드래그 · 위로 스와이프</span></div></div></div>
       <div class="controls"><p id="status" role="status">준비됐나요? 점프하면 출발해요!</p><button id="jump" type="button">점프 / 시작 ↗</button></div>
     </section>
     <p class="version-label">버전 <span id="app-version"></span></p>

@@ -25,10 +25,9 @@ export function createDinosaur({ color = '#9dce9a' } = {}) {
   oval(body, green, [0, 1.18, 0], [0.87, 1.04, 0.67]);
   oval(body, cream, [0, 0.82, 0.55], [0.54, 0.48, 0.18]);
   for (const side of [-1, 1]) {
-    oval(body, dark, [side * 0.29, 1.72, 0.534], [0.093, 0.112, 0.057]);
+    oval(body, dark, [side * 0.29, 1.72, 0.534], [0.10, 0.12, 0.057]);
     oval(body, white, [side * 0.29 - 0.018, 1.751, 0.576], [0.025, 0.029, 0.014]);
-    oval(body, pink, [side * 0.46, 1.47, 0.558], [0.125, 0.063, 0.025]);
-    oval(body, sage, [side * 0.13, 1.52, 0.626], [0.025, 0.018, 0.012]);
+    oval(body, pink, [side * 0.43, 1.47, 0.575], [0.115, 0.055, 0.018]);
   }
   const smile = new THREE.CatmullRomCurve3([new THREE.Vector3(-0.09,1.40,0.651),new THREE.Vector3(0,1.36,0.667),new THREE.Vector3(0.09,1.40,0.651)]);
   body.add(new THREE.Mesh(new THREE.TubeGeometry(smile,16,0.012,6,false),dark));
@@ -98,7 +97,7 @@ export function createCharacterView(canvas, { preview = false } = {}) {
     draw(time, {running=false, jump=0}={}) {
       const width=canvas.clientWidth, height=canvas.clientHeight;
       if(!width || !height)return;
-      renderer.setSize(width,height,false);
+      if(canvas.width!==Math.floor(width*renderer.getPixelRatio())||canvas.height!==Math.floor(height*renderer.getPixelRatio()))renderer.setSize(width,height,false);
       if(preview) {
         const aspect=width/height;
         camera.left=-1.8*aspect;camera.right=1.8*aspect;camera.top=1.8;camera.bottom=-1.8;
