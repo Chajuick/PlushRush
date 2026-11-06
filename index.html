@@ -3,20 +3,55 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>PlushRush · 구름 위의 작은 모험</title>
+  <title>달려라! 인형친구들 · 차원의 틈 너머로</title>
   <link rel="stylesheet" href="/style.css">
   <script type="module" src="/game.js"></script>
+  <script type="module" src="/intro.js"></script>
+  <script type="module" src="/updates.js"></script>
 </head>
-<body>
+<body class="watching-intro">
+  <section id="opening" class="opening" aria-label="인형친구들 이야기" aria-describedby="opening-caption">
+    <canvas id="opening-scene" aria-hidden="true"></canvas>
+    <div class="opening-vignette"></div>
+    <div id="sleeping-face" class="sleeping-face" aria-hidden="true">
+      <svg viewBox="0 0 800 240" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <radialGradient id="pillow"><stop stop-color="#f5e7de"/><stop offset="1" stop-color="#a599b9"/></radialGradient>
+          <radialGradient id="skin" cx=".45" cy=".35"><stop stop-color="#f4ceb5"/><stop offset="1" stop-color="#c18b85"/></radialGradient>
+          <linearGradient id="hair" x2=".5" y2="1"><stop stop-color="#494052"/><stop offset="1" stop-color="#272636"/></linearGradient>
+        </defs>
+        <path d="M0 240V110Q45 42 130 94Q220 150 400 105Q620 140 700 85Q775 40 800 130V240" fill="url(#pillow)"/>
+        <path d="M155 240Q130 50 310 30Q430 -15 570 68Q665 120 650 240" fill="url(#hair)"/>
+        <path d="M205 240Q190 102 400 70Q602 85 595 240" fill="url(#skin)"/>
+        <path d="M180 170Q167 56 327 35Q490 -7 611 107L621 188Q570 163 531 86Q508 130 452 140Q478 108 459 78Q407 151 316 158Q350 121 349 92Q278 170 180 190" fill="url(#hair)"/>
+        <g fill="none" stroke-linecap="round"><path d="M235 116Q275 86 313 71M250 134Q313 112 337 82M487 56Q566 92 587 139" stroke="#746075" stroke-width="3" opacity=".5"/>
+        <g class="sleep-brows" stroke="#77535a" stroke-width="8"><path d="M277 194Q305 176 338 189"/><path d="M463 189Q493 176 523 194"/></g>
+        <g stroke="#664653" stroke-width="5"><path d="M274 218Q309 237 343 215"/><path d="M457 215Q490 237 526 218"/></g></g>
+      </svg>
+    </div>
+    <div class="opening-top"><span>PLUSH RUSH · A LITTLE DREAM</span><button id="skip-intro" type="button">건너뛰기 ↗</button></div>
+    <div id="opening-title" class="opening-title"><p>오늘 밤, 너의 꿈을 지켜줄게</p><h1>달려라!<br><span>인형친구들</span></h1><h2>－ 차원의 틈 너머로 －</h2></div>
+    <div class="opening-bottom"><p id="opening-caption" role="status">잠 못 드는 밤, 작은 걱정들이 피어나요.</p><button id="enter-game" type="button" hidden>친구들과 달리기 →</button></div>
+  </section>
+  <aside id="update-notice" class="update-notice" aria-label="새 버전 알림" hidden>
+    <div><strong>새 버전이 나왔어요</strong><p id="update-description">최신 버전으로 업데이트할 수 있어요.</p></div>
+    <button id="apply-update" type="button">최신 버전 받기 ↻</button>
+    <button id="dismiss-update" type="button" aria-label="업데이트 알림 닫기">나중에</button>
+  </aside>
   <main>
-    <header><a href="/" class="brand">☁ PlushRush</a><span>작은 점프, 커다란 모험</span></header>
-    <section class="intro"><p class="eyebrow">A LITTLE CLOUD ADVENTURE</p><h1>오늘은 어디까지<br>달려볼까요?</h1><p>폭신한 친구와 함께 장애물을 뛰어넘어 보세요.</p></section>
+    <header><a href="/" class="brand">☁ PlushRush</a><button id="replay-intro" class="replay" type="button">이야기 다시 보기 ✧</button></header>
+    <section class="intro"><p class="eyebrow">A LITTLE CLOUD ADVENTURE</p><h1>오늘은 어디까지<br>달려볼까요?</h1><p>콩알만큼 동글동글한 공룡 인형과 함께 달려요.</p></section>
+    <section class="character-card" aria-label="기본 캐릭터 소개">
+      <div class="portrait"><canvas id="portrait" aria-label="드래그해서 돌려볼 수 있는 3D 공룡 인형"></canvas></div>
+      <div class="character-copy"><p class="eyebrow">YOUR FIRST PLUSH FRIEND</p><h2>작고 동글한<br>공룡 친구</h2><p>머리부터 몸까지 하나로 이어진 콩알 실루엣.<br>콩알 같은 공룡 인형이 모험에 함께해요.</p><span class="character-tag">기본 캐릭터 · 3D 봉제 인형</span><p id="model-status" class="model-hint">인형을 좌우로 드래그해서 돌려보세요 ↔</p></div>
+    </section>
     <section class="game" aria-label="러닝 게임">
       <div class="scoreboard"><span>거리 <strong id="score">0</strong> m</span><span>최고 기록 <strong id="best">0</strong> m</span></div>
-      <canvas id="game" width="960" height="400" aria-label="스페이스 키 또는 점프 버튼으로 장애물을 피하는 게임"></canvas>
+      <div class="playfield"><canvas id="game" width="960" height="600" aria-label="좌우 이동과 점프로 장애물을 피하는 후방 시점 3D 러닝 게임"></canvas></div>
       <div class="controls"><p id="status" role="status">준비됐나요? 점프하면 출발해요!</p><button id="jump" type="button">점프 / 시작 ↗</button></div>
     </section>
-    <footer>SPACE · ↑ · 화면 터치로 점프 <span>넘어져도 괜찮아요. 다시 달리면 되니까요.</span></footer>
+    <p class="version-label">버전 <span id="app-version"></span></p>
+    <footer>← → 이동 · SPACE 점프 · 드래그 이동 / 위로 스와이프 점프 <span>넘어져도 괜찮아요. 다시 달리면 되니까요.</span></footer>
   </main>
 </body>
 </html>

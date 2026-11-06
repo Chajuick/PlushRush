@@ -1,12 +1,22 @@
 {
   "name": "plush-rush",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "node server.mjs",
-    "start": "node server.mjs",
-    "check": "node --check server.mjs && node --check game.js"
+    "dev": "vite --host 0.0.0.0",
+    "start": "vite --host 0.0.0.0",
+    "check": "node --check game.js && node --check dinosaur.js && node --check intro.js && node --check updates.js && node --check vite.config.js",
+    "build": "vite build",
+    "preview": "vite preview --host 0.0.0.0"
   },
-  "engines": { "node": ">=22" }
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "three": "^0.187.0"
+  },
+  "devDependencies": {
+    "vite": "^8.3.6"
+  }
 }
