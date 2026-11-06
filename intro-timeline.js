@@ -1,25 +1,22 @@
-const clamp = value => Math.max(0, Math.min(1, value));
-const ramp = (time, from, to) => { const x=clamp((time-from)/(to-from));return x*x*(3-2*x); };
-export function introState(seconds, reduced=false) {
-  const time=reduced?4:Math.max(0,Math.min(4,seconds));
-  const hits=[2.35,2.62];
+export const INTRO_DURATION=8.6;
+const clamp=x=>Math.max(0,Math.min(1,x));
+export const ease=(t,a,b)=>{const x=clamp((t-a)/(b-a));return x*x*(3-2*x);};
+export function introState(seconds,reduced=false){
+  const time=reduced?INTRO_DURATION:Math.max(0,Math.min(INTRO_DURATION,seconds));
+  const launches=[6.25,6.5,6.75];
   return {
-    time,
-    portal:ramp(time,.55,1.05),
-    arrival:ramp(time,.78,1.45),
-    landing:Math.sin(clamp((time-1.4)/.3)*Math.PI),
-    protect:ramp(time,1.55,1.95)*(1-ramp(time,2.75,3.15)),
-    relief:ramp(time,2.8,3.35),
-    wave:ramp(time,3.35,3.65),
-    ghosts:hits.map((hit,i)=>({
-      approach:ramp(time,.1+i*.12,.8+i*.12),
-      hit:time>=hit,
-      recoil:ramp(time,hit,hit+.12),
-      dissolve:ramp(time,hit+.10,hit+.35),
-      pulse:clamp((time-(hit-.3))/.3),
-      pulseVisible:time>=hit-.3&&time<hit,
-      burstVisible:time>=hit&&time<hit+.6,
-      burst:clamp((time-hit)/.6)
-    }))
+    time,fade:1-ease(time,0,.55),rise:ease(time,1.65,2.75),
+    storm:ease(time,3.65,4.35)*(1-ease(time,7.7,8.6)),
+    thunder:Math.max(0,1-Math.abs(time-4.05)/.07)*.55+Math.max(0,1-Math.abs(time-4.42)/.09)*.3,
+    distress:ease(time,3.8,4.4)*(1-ease(time,7.7,8.4)),
+    nightmare:ease(time,4.1,4.5)*(1-ease(time,7.7,8.2)),
+    portal:ease(time,4.7,5.1),arrival:ease(time,5.05,5.8),
+    landing:Math.sin(ease(time,5.72,6.02)*Math.PI),
+    cheer:ease(time,5.65,6.05),shock:ease(time,6.05,6.65),
+    logo:ease(time,7.85,8.6),
+    ghosts:launches.map((launch,i)=>{
+      const flight=ease(time,launch,launch+.75),burst=ease(time,launch+.75,launch+1.2);
+      return {spawn:ease(time,4.35+i*.16,4.85+i*.16),flight,burst,visible:time>4.35+i*.16&&time<launch+.75,burstVisible:time>=launch+.75&&time<launch+1.2};
+    })
   };
 }

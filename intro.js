@@ -1,204 +1,167 @@
 import * as THREE from 'three';
-import { createDinosaur } from '/dinosaur.js';
-import { openingShot } from './camera-motion.js';
-import { introState } from './intro-timeline.js';
+import {createDinosaur} from './dinosaur.js';
+import {createSheep,createSleeper} from './intro-assets.js';
+import {openingShot} from './camera-motion.js';
+import {introState,INTRO_DURATION,ease} from './intro-timeline.js';
 
-const overlay=document.querySelector('#opening');
-const canvas=document.querySelector('#opening-scene');
-const caption=document.querySelector('#opening-caption');
-const title=document.querySelector('#opening-title');
-const enter=document.querySelector('#enter-game');
-const reduceMotion=matchMedia('(prefers-reduced-motion: reduce)').matches;
-let renderer;
-try { renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:true}); }
-catch { caption.textContent='작은 인형들이 당신의 꿈을 지켜줄 거예요.';title.classList.add('visible');enter.hidden=false; }
-let active=true,elapsed=0,previous;
+const overlay=document.querySelector('#opening'),canvas=document.querySelector('#opening-scene');
+const title=document.querySelector('#opening-title'),caption=document.querySelector('#opening-caption');
+const fade=document.querySelector('#opening-fade'),flash=document.querySelector('#lightning-flash');
+const enter=document.querySelector('#enter-game'),main=document.querySelector('main');
+const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
+let active=true,elapsed=0,previous,renderer,finalSize='';
+function resetUI(){finalSize='';title.classList.remove('visible');enter.hidden=true;fade.style.opacity='1';caption.textContent='평온한 잠 속으로…';}
 function finish(){
-  active=false;overlay.hidden=true;document.body.classList.remove('watching-intro');
-  window.dispatchEvent(new Event('plush:intro-closed'));
-  document.querySelector('main').inert=false;document.querySelector('#jump').focus();
+ active=false;overlay.hidden=true;document.body.classList.remove('watching-intro');main.inert=false;
+ window.dispatchEvent(new Event('plush:intro-closed'));document.querySelector('#jump').focus();
 }
 document.querySelector('#skip-intro').addEventListener('click',finish);
 enter.addEventListener('click',finish);
 document.querySelector('#replay-intro').addEventListener('click',()=>{
-  overlay.hidden=false;active=true;elapsed=0;previous=undefined;
-  document.body.classList.add('watching-intro');document.querySelector('main').inert=true;
-  title.classList.add('visible');enter.hidden=false;document.querySelector('#skip-intro').focus();
+ active=true;elapsed=0;previous=undefined;overlay.hidden=false;main.inert=true;
+ document.body.classList.add('watching-intro');resetUI();document.querySelector('#skip-intro').focus();
+ if(!renderer)fallback();
 });
-document.querySelector('main').inert=true;
-title.classList.add('visible');enter.hidden=false;
-document.querySelector('#enter-game').focus();
+function fallback(){fade.style.opacity='0';title.classList.add('visible');enter.hidden=false;caption.textContent='작은 친구들과 꿈 너머로 달려요.';}
+main.inert=true;resetUI();document.querySelector('#skip-intro').focus();
+try{renderer=new THREE.WebGLRenderer({canvas,antialias:true});}catch{fallback();}
+
+// Audio is opt-in: browsers prohibit unsolicited autoplay audio.
+let audio,enabled=false,lastAudioTime=-1;
+const sound=document.querySelector('#intro-sound');
+sound.addEventListener('click',async()=>{
+ try{audio??=new AudioContext();await audio.resume();enabled=!enabled;sound.textContent=enabled?'소리 끄기':'소리 켜기';sound.setAttribute('aria-pressed',String(enabled));}catch{sound.textContent='소리 사용 불가';sound.disabled=true;}
+});
+function playEffect(kind){
+ if(!enabled||!audio)return;
+ const gain=audio.createGain();gain.connect(audio.destination);const now=audio.currentTime;
+ if(kind==='thunder'){
+  const length=audio.sampleRate*1.1,buffer=audio.createBuffer(1,length,audio.sampleRate),data=buffer.getChannelData(0);
+  for(let i=0;i<length;i++)data[i]=(Math.random()*2-1)*Math.exp(-i/length*4);
+  const source=audio.createBufferSource();source.buffer=buffer;const filter=audio.createBiquadFilter();filter.type='lowpass';filter.frequency.value=220;source.connect(filter);filter.connect(gain);gain.gain.setValueAtTime(.18,now);source.start();
+ }else{
+  const tone=audio.createOscillator();tone.type='sine';tone.frequency.setValueAtTime(kind==='pop'?550:420,now);tone.frequency.exponentialRampToValueAtTime(kind==='pop'?180:900,now+.16);gain.gain.setValueAtTime(.06,now);gain.gain.exponentialRampToValueAtTime(.001,now+.22);tone.connect(gain);tone.start();tone.stop(now+.23);
+ }
+}
 
 if(renderer){
-renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.0;renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
-renderer.setPixelRatio(Math.min(devicePixelRatio,1.75));renderer.setClearColor(0x000000,0);
-const scene=new THREE.Scene();scene.fog=new THREE.FogExp2('#151b36',0.012);
-const camera=new THREE.PerspectiveCamera(43,1,0.1,90);
-camera.position.set(0,7.6,18);camera.lookAt(0,2,-2);
-scene.add(new THREE.HemisphereLight('#d9dbff','#485744',1.0));
-const moonlight=new THREE.DirectionalLight('#bacaff',1.1);moonlight.position.set(-7,12,4);scene.add(moonlight);
-const key=new THREE.DirectionalLight('#ffe3b0',1.5);key.position.set(-3,7,8);key.castShadow=true;key.shadow.mapSize.set(1024,1024);key.shadow.camera.left=-10;key.shadow.camera.right=10;key.shadow.camera.top=10;key.shadow.camera.bottom=-10;scene.add(key);
-const faceLight=new THREE.DirectionalLight('#fff3dc',.9);faceLight.position.set(1,4,12);scene.add(faceLight);
-const rimLight=new THREE.DirectionalLight('#c9a8ff',1.2);rimLight.position.set(4,5,-5);scene.add(rimLight);
-const glow=new THREE.PointLight('#ffe6af',0,22);glow.position.set(0,3,2);scene.add(glow);
-const material=color=>new THREE.MeshStandardMaterial({color,roughness:0.95});
-function sphere(parent,position,scale,mat){const m=new THREE.Mesh(new THREE.SphereGeometry(1,24,16),mat);m.position.set(...position);m.scale.set(...scale);m.castShadow=true;m.receiveShadow=true;parent.add(m);return m;}
-const ground=material('#283a49');
-const floor=new THREE.Mesh(new THREE.PlaneGeometry(80,90),ground);floor.rotation.x=-Math.PI/2;floor.position.set(0,-.05,-15);floor.receiveShadow=true;scene.add(floor);
-sphere(scene,[-15,-1,-18],[13,3.6,14],material('#253348'));
-sphere(scene,[17,-1,-22],[17,4,15],material('#303a51'));
-const moon=sphere(scene,[-8,10,-21],[1.4,1.4,0.4],new THREE.MeshBasicMaterial({color:'#fff3cf'}));
-sphere(scene,[-7.35,10.4,-20.5],[1.2,1.2,0.45],new THREE.MeshBasicMaterial({color:'#151b36'}));
-// A seeded arrangement keeps the composition stable across replays.
-let seed=19;const random=()=>{seed=(seed*16807)%2147483647;return(seed-1)/2147483646;};
-const starPositions=[];
-for(let i=0;i<120;i++)starPositions.push((random()-.5)*46,3+random()*15,-12-random()*23);
-const starGeometry=new THREE.BufferGeometry();starGeometry.setAttribute('position',new THREE.Float32BufferAttribute(starPositions,3));
-const stars=new THREE.Points(starGeometry,new THREE.PointsMaterial({color:'#ffe8bd',size:.055,sizeAttenuation:true,transparent:true,opacity:.8}));scene.add(stars);
-// Curved tapered grass ribbons are instanced instead of scattered cones.
-const bladeGeometry=new THREE.PlaneGeometry(.10,.7,1,5);
-const bp=bladeGeometry.attributes.position;
-for(let i=0;i<bp.count;i++){
- const h=(bp.getY(i)+.35)/.7;
- bp.setXYZ(i,bp.getX(i)*(1-h*.95)+h*h*.17,h*.7,h*h*.12);
-}
-bladeGeometry.computeVertexNormals();
-const bladeMaterial=new THREE.MeshStandardMaterial({color:'#668479',roughness:1,side:THREE.DoubleSide});
-const blades=new THREE.InstancedMesh(bladeGeometry,bladeMaterial,900),transform=new THREE.Object3D();
-for(let i=0;i<900;i++){
- const x=(random()-.5)*30,z=5-random()*35;
- transform.position.set(x,Math.abs(x)<2.5?-.8:0,z);transform.rotation.set(0,random()*Math.PI*2,(random()-.5)*.2);transform.scale.setScalar(.4+random()*.9);transform.updateMatrix();blades.setMatrixAt(i,transform.matrix);
- blades.setColorAt(i,new THREE.Color().setHSL(.38+random()*.07,.16,.20+random()*.14));
-}
-scene.add(blades);
-const petalMaterial=material('#e9dfeb'),flowerCenter=material('#efd399'),stemMaterial=material('#54756c');
-const petalGeometry=new THREE.SphereGeometry(1,8,6);
-for(let i=0;i<100;i++){
- const x=(random()-.5)*24,z=2-random()*22;
- if(Math.abs(x)<2.6)continue;
- const flower=new THREE.Group();flower.position.set(x,.1,z);
- const stem=new THREE.Mesh(new THREE.CylinderGeometry(.018,.025,.6,4),stemMaterial);stem.position.y=.25;flower.add(stem);
- const center=new THREE.Mesh(petalGeometry,flowerCenter);center.position.y=.6;center.scale.set(.08,.06,.08);flower.add(center);
- for(let j=0;j<5;j++){
-  const a=j*Math.PI*2/5,p=new THREE.Mesh(petalGeometry,petalMaterial);
-  p.position.set(Math.cos(a)*.12,.59,Math.sin(a)*.12);p.scale.set(.12,.045,.075);p.rotation.y=-a;flower.add(p);
+ renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.05;
+ renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+ const scene=new THREE.Scene(),camera=new THREE.PerspectiveCamera(44,1,.1,150);
+ const bedroom=new THREE.Color('#11192a'),day=new THREE.Color('#9fd7e9'),stormSky=new THREE.Color('#343e59');scene.background=day.clone();scene.fog=new THREE.Fog(day,35,100);
+ const ambient=new THREE.HemisphereLight('#e7f5ff','#6d9362',1.8);scene.add(ambient);
+ const sun=new THREE.DirectionalLight('#fff1c4',2.8);sun.position.set(-9,15,8);sun.castShadow=true;sun.shadow.mapSize.set(1024,1024);Object.assign(sun.shadow.camera,{left:-15,right:15,top:15,bottom:-15});scene.add(sun);
+ const nightLight=new THREE.DirectionalLight('#a8b9df',.8);nightLight.position.set(5,6,12);scene.add(nightLight);
+ const heroLight=new THREE.PointLight('#ffe3a7',0,18);heroLight.position.set(0,2,1);scene.add(heroLight);
+ const mat=color=>new THREE.MeshStandardMaterial({color,roughness:.96});
+ const sphereGeometry=new THREE.SphereGeometry(1,24,16);
+ function oval(parent,material,position,scale){const m=new THREE.Mesh(sphereGeometry,material);m.position.set(...position);m.scale.set(...scale);m.castShadow=true;m.receiveShadow=true;parent.add(m);return m;}
+ const grassMaterial=mat('#91bd76');grassMaterial.transparent=true;
+ const floor=new THREE.Mesh(new THREE.PlaneGeometry(110,140,1,1),grassMaterial);floor.rotation.x=-Math.PI/2;floor.position.set(0,-.06,-30.5);floor.receiveShadow=true;scene.add(floor);
+ const hills=[];
+ for(const [x,y,z,sx,sy,sz,c] of [[-15,-1,-24,18,5,15,'#88b879'],[15,-1,-33,23,7,18,'#78aa7a'],[-24,-2,-49,23,8,20,'#77a28b']])hills.push(oval(scene,mat(c),[x,y,z],[sx,sy,sz]));
+ const sleeper=createSleeper();sleeper.position.set(0,-4,10);scene.add(sleeper);
+ const dreamSleeper=createSleeper();dreamSleeper.rotation.x=Math.PI/2;dreamSleeper.position.set(0,-4.1,-8);camera.add(dreamSleeper);scene.add(camera);
+ let seed=133;const random=()=>{seed=(seed*16807)%2147483647;return(seed-1)/2147483646;};
+ const clouds=[];
+ const cloudCanvas=document.createElement('canvas');cloudCanvas.width=512;cloudCanvas.height=256;
+ const cloudPaint=cloudCanvas.getContext('2d');
+ for(const [x,y,r] of [[92,167,61],[168,127,85],[262,107,91],[347,145,75],[417,172,52]]){
+  const g=cloudPaint.createRadialGradient(x,y,r*.55,x,y,r);g.addColorStop(0,'rgba(255,255,255,.95)');g.addColorStop(1,'rgba(255,255,255,0)');cloudPaint.fillStyle=g;cloudPaint.fillRect(x-r,y-r,r*2,r*2);
  }
- flower.rotation.y=random()*6;flower.scale.setScalar(.6+random()*.8);scene.add(flower);
-}
-for(let i=0;i<9;i++)sphere(scene,[Math.sin(i)*.55,-.02,4-i*.8],[1,.07,.5],material('#62746c'));
-function portal(x,y,z,color){
- const group=new THREE.Group();group.position.set(x,y,z);scene.add(group);
- const rim=[];for(let i=0;i<=96;i++){const a=i/96*Math.PI*2,r=1.55+Math.sin(a*5)*.045+Math.cos(a*3)*.035;rim.push(new THREE.Vector3(Math.cos(a)*r,Math.sin(a)*r,Math.sin(a*4)*.045));}
- const ring=new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(rim,true),128,.105,12,true),new THREE.MeshStandardMaterial({color,roughness:.85,emissive:color,emissiveIntensity:.65}));group.add(ring);
- for(let i=0;i<64;i++){
-  const a=i/64*Math.PI*2;
-  const stitch=new THREE.Mesh(new THREE.CapsuleGeometry(.018,.065,3,5),new THREE.MeshBasicMaterial({color:'#fff0c2'}));
-  stitch.position.set(Math.cos(a)*1.55,Math.sin(a)*1.55,.17);stitch.rotation.z=a+.6;group.add(stitch);
+ const cloudMaterial=new THREE.SpriteMaterial({map:new THREE.CanvasTexture(cloudCanvas),color:'#fffdf2',transparent:true,depthWrite:false});
+ for(let i=0;i<7;i++){
+  const cloud=new THREE.Sprite(cloudMaterial);cloud.scale.set(11+i%3*2,5+i%2,1);cloud.position.set((i-3)*10,8+i%3*2,-27-i%4*7);scene.add(cloud);clouds.push(cloud);
  }
- const haloCanvas=document.createElement('canvas');haloCanvas.width=haloCanvas.height=128;
- const context=haloCanvas.getContext('2d'),gradient=context.createRadialGradient(64,64,0,64,64,64);
- gradient.addColorStop(0,'rgba(255,223,160,.32)');gradient.addColorStop(.5,'rgba(255,210,140,.15)');gradient.addColorStop(1,'rgba(255,210,140,0)');context.fillStyle=gradient;context.fillRect(0,0,128,128);
- const halo=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(haloCanvas),transparent:true,depthWrite:false,blending:THREE.AdditiveBlending}));halo.scale.set(6,6,1);group.add(halo);
- const haze=new THREE.Mesh(new THREE.CircleGeometry(1.5,64),new THREE.ShaderMaterial({
-  transparent:true,depthWrite:false,side:THREE.DoubleSide,uniforms:{tint:{value:new THREE.Color(color)}},
-  vertexShader:'varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
-  fragmentShader:'uniform vec3 tint;varying vec2 vUv;void main(){float r=length(vUv-.5)*2.;float mist=sin(vUv.y*18.+sin(vUv.x*12.)*2.)*.5+.5;float alpha=(.12+mist*.08)*(1.-smoothstep(.75,1.,r));gl_FragColor=vec4(tint,alpha);}'
- }));group.add(haze);
- const inner=new THREE.Mesh(new THREE.TorusGeometry(1.35,.025,6,64),new THREE.MeshBasicMaterial({color:'#fff2d4'}));inner.position.z=.03;group.add(inner);
- return group;
-}
-const nightmare=portal(3.9,2.7,-7,'#a77ce3');nightmare.scale.set(1.15,1.35,1);
-const plushPortal=portal(0,2.3,-1.8,'#f2d18f');
-plushPortal.scale.setScalar(1.4);
-const darkClouds=[];
-for(let i=0;i<12;i++){
- const c=document.createElement('canvas');c.width=c.height=64;const b=c.getContext('2d');const g=b.createRadialGradient(32,32,0,32,32,32);g.addColorStop(0,'rgba(151,115,194,.5)');g.addColorStop(1,'rgba(91,65,137,0)');b.fillStyle=g;b.fillRect(0,0,64,64);
- const cloud=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),depthWrite:false,transparent:true}));scene.add(cloud);darkClouds.push(cloud);
-}
-function makeGhost(){
- const g=new THREE.Group();const lavender=material('#b8a7d3');
- sphere(g,[0,.1,0],[.47,.58,.36],lavender);
- for(let i=0;i<3;i++)sphere(g,[(i-1)*.27,-.31,0],[.20,.23,.31],lavender);
- for(const side of [-1,1]){sphere(g,[side*.17,.2,.33],[.05,.07,.025],material('#39314f'));sphere(g,[side*.47,0,0],[.19,.11,.15],lavender);}
- sphere(g,[0,-.02,.35],[.065,.07,.025],material('#65517e'));scene.add(g);return g;
-}
-const ghosts=Array.from({length:2},makeGhost);
-const dolls=[];
-for(let i=0;i<1;i++){const doll=createDinosaur({color:['#9dce9a','#d5afbf','#c7b9e6'][i]});doll.scale.setScalar(1.6);scene.add(doll);dolls.push(doll);}
-// Visible cause/effect: protection pulses travel from the doll to each ghost.
-const pulses=[],bursts=[];
-const pulseMaterial=new THREE.MeshBasicMaterial({color:'#ffe2a0'});
-const pulseCanvas=document.createElement('canvas');pulseCanvas.width=pulseCanvas.height=64;const pc=pulseCanvas.getContext('2d'),pg=pc.createRadialGradient(32,32,0,32,32,32);pg.addColorStop(0,'rgba(255,224,161,.7)');pg.addColorStop(1,'rgba(255,224,161,0)');pc.fillStyle=pg;pc.fillRect(0,0,64,64);const pulseMap=new THREE.CanvasTexture(pulseCanvas);
-const starShape=new THREE.Shape();
-for(let i=0;i<10;i++){const a=i/10*Math.PI*2-Math.PI/2,r=i%2?.42:1;const x=Math.cos(a)*r,y=Math.sin(a)*r;if(i===0)starShape.moveTo(x,y);else starShape.lineTo(x,y);}starShape.closePath();
-const starMeshGeometry=new THREE.ShapeGeometry(starShape);
-const charge=new THREE.Group();charge.add(new THREE.Mesh(new THREE.SphereGeometry(.28,16,12),pulseMaterial));
-const chargeAura=new THREE.Sprite(new THREE.SpriteMaterial({map:pulseMap,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending}));chargeAura.scale.set(1.7,1.7,1);charge.add(chargeAura);scene.add(charge);
-const protectionOrigin=new THREE.Vector3();
-for(let i=0;i<2;i++){
- const pulse=new THREE.Group();pulse.add(new THREE.Mesh(new THREE.SphereGeometry(.25,16,12),pulseMaterial));const aura=new THREE.Sprite(new THREE.SpriteMaterial({map:pulseMap,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending}));aura.scale.set(1.2,1.2,1);pulse.add(aura);scene.add(pulse);pulses.push(pulse);
- const group=new THREE.Group();
- for(let j=0;j<5;j++){const star=new THREE.Mesh(starMeshGeometry,new THREE.MeshBasicMaterial({color:j%2?'#ffe5ac':'#cde9c8',side:THREE.DoubleSide,transparent:true}));star.scale.setScalar(.25);group.add(star);}
- scene.add(group);bursts.push(group);
-}
-// Vector foreground keeps the cropped sleeping face legible on small screens.
-const face=document.querySelector('#sleeping-face');
-let lastCaption='';
-const captions=['','잠 못 드는 밤, 작은 걱정들이 피어나요.','꿈의 틈으로 악몽들이 찾아왔어요.','그때, 따뜻한 빛 하나가 열리고…','작은 친구들이 당신의 꿈을 지켜요.','이제 안심하고 꿈꿔도 괜찮아.'];
-function draw(time){
+ const sunDisc=oval(scene,new THREE.MeshBasicMaterial({color:'#fff0b8'}),[-12,12,-42],[2,2,.5]);
+ const blade=new THREE.PlaneGeometry(.09,.5,1,3),bp=blade.attributes.position;
+ for(let i=0;i<bp.count;i++){const h=(bp.getY(i)+.25)/.5;bp.setXYZ(i,bp.getX(i)*(1-h*.9)+h*h*.12,h*.5,h*h*.09);}blade.computeVertexNormals();
+ const grass=new THREE.InstancedMesh(blade,new THREE.MeshStandardMaterial({color:'#80ad68',roughness:1,side:THREE.DoubleSide}),850),matrix=new THREE.Object3D();
+ for(let i=0;i<850;i++){
+  const x=(random()-.5)*40,z=-1-random()*45;matrix.position.set(x,Math.abs(x)<2&&z>-8?-.6:0,z);matrix.rotation.y=random()*6;matrix.scale.setScalar(.5+random());matrix.updateMatrix();grass.setMatrixAt(i,matrix.matrix);
+ }scene.add(grass);
+ const sheep=[];
+ for(let i=0;i<6;i++){const s=createSheep();s.scale.setScalar(.72+i%2*.12);scene.add(s);sheep.push(s);}
+ const flowerMaterial=new THREE.MeshBasicMaterial({color:'#f3edcf'});
+ const flowerPositions=[];for(let i=0;i<90;i++)flowerPositions.push((random()-.5)*35,.27,-2-random()*32);
+ const flowers=new THREE.BufferGeometry();flowers.setAttribute('position',new THREE.Float32BufferAttribute(flowerPositions,3));scene.add(new THREE.Points(flowers,new THREE.PointsMaterial({color:flowerMaterial.color,size:.12,sizeAttenuation:true})));
+ function portal(color){
+  const g=new THREE.Group(),points=[];for(let i=0;i<=72;i++){const a=i/72*Math.PI*2;points.push(new THREE.Vector3(Math.cos(a)*1.5,Math.sin(a)*1.5,Math.sin(a*4)*.04));}
+  const ring=new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points,true),96,.07,8,true),new THREE.MeshBasicMaterial({color}));g.add(ring);
+  const center=new THREE.Mesh(new THREE.CircleGeometry(1.46,64),new THREE.MeshBasicMaterial({color,transparent:true,opacity:.2,side:THREE.DoubleSide,depthWrite:false}));g.add(center);scene.add(g);return g;
+ }
+ const nightmare=portal('#ba99ed');nightmare.position.set(3,2.5,-7);nightmare.scale.setScalar(.01);
+ const dollPortal=portal('#ffe5ae');dollPortal.position.set(0,.03,-.5);dollPortal.rotation.x=-Math.PI/2;
+ const dolls=[];for(let i=0;i<3;i++){const d=createDinosaur({color:['#94bf91','#b8a0c6','#c4b18c'][i]});d.scale.setScalar(i?1.1:1.45);scene.add(d);dolls.push(d);}
+ function ghost(){
+  const g=new THREE.Group(),bodyMat=mat('#c3b2df');
+  const shape=new THREE.LatheGeometry([new THREE.Vector2(0,-.5),new THREE.Vector2(.36,-.35),new THREE.Vector2(.46,0),new THREE.Vector2(.38,.43),new THREE.Vector2(.18,.61),new THREE.Vector2(0,.64)],24);
+  g.add(new THREE.Mesh(shape,bodyMat));
+  for(const side of [-1,1]){oval(g,mat('#403956'),[side*.16,.2,.38],[.045,.07,.025]);oval(g,bodyMat,[side*.4,.05,0],[.18,.11,.15]);}
+  oval(g,mat('#655573'),[0,-.03,.44],[.06,.08,.025]);scene.add(g);return g;
+ }
+ const ghosts=Array.from({length:3},ghost);
+ const rainPositions=new Float32Array(380*6);
+ const rainGeometry=new THREE.BufferGeometry();rainGeometry.setAttribute('position',new THREE.BufferAttribute(rainPositions,3));
+ const rain=new THREE.LineSegments(rainGeometry,new THREE.LineBasicMaterial({color:'#b9d1e5',transparent:true,opacity:0}));rain.frustumCulled=false;scene.add(rain);
+ const rainSeeds=Array.from({length:380},()=>[random()*32-16,random()*15,random()*32-24]);
+ const starShape=new THREE.Shape();for(let i=0;i<10;i++){const a=i*Math.PI/5-Math.PI/2,r=i%2?.43:1;if(i)starShape.lineTo(Math.cos(a)*r,Math.sin(a)*r);else starShape.moveTo(Math.cos(a)*r,Math.sin(a)*r);}starShape.closePath();
+ const starGeometry=new THREE.ShapeGeometry(starShape);
+ function starBurst(count,color){const group=new THREE.Group();for(let i=0;i<count;i++){const m=new THREE.Mesh(starGeometry,new THREE.MeshBasicMaterial({color,transparent:true,side:THREE.DoubleSide,depthWrite:false}));group.add(m);}scene.add(group);return group;}
+ const shockStars=starBurst(24,'#ffe6a2'),pops=Array.from({length:3},()=>starBurst(9,'#fff0b8'));
+ const shockRing=new THREE.Mesh(new THREE.RingGeometry(.94,1,72),new THREE.MeshBasicMaterial({color:'#ffe9b1',side:THREE.DoubleSide,transparent:true,depthWrite:false}));shockRing.rotation.x=-Math.PI/2;shockRing.position.set(0,.1,1);scene.add(shockRing);
+ let lastCaption='';
+ const captions=['평온한 잠 속으로…','초원 위로, 포근한 꿈이 펼쳐져요.','그런데… 꿈에 먹구름이 몰려와요.','걱정 마! 우리가 왔어!','달려라! 인형친구들'];
+
+ function draw(now){
+  requestAnimationFrame(draw);if(!active||document.hidden){previous=undefined;return;}
+  if(previous!==undefined)elapsed+=Math.min((now-previous)/1000,.25);previous=now;
+  const s=introState(elapsed,reduced),t=s.time;
+  const sizeKey=`${canvas.clientWidth}:${canvas.clientHeight}`;
+  if(t===INTRO_DURATION&&finalSize===sizeKey)return;
+  if(t<INTRO_DURATION)finalSize='';
+  const phase=t<2?0:t<3.7?1:t<5.2?2:t<7.8?3:4;
+  if(lastCaption!==captions[phase]){caption.textContent=captions[phase];lastCaption=captions[phase];}
+  overlay.dataset.beat=['bed','meadow','storm','rescue','logo'][phase];
+  fade.style.opacity=String(s.fade);flash.style.opacity=String(reduced?0:s.thunder);
+  title.classList.toggle('visible',s.logo>0);title.style.setProperty('--logo-reveal',String(s.logo));enter.hidden=s.logo<.7;
+  sleeper.userData.setDistress(s.distress);sleeper.userData.animate(t);sleeper.visible=s.rise<.75;
+  dreamSleeper.visible=s.rise>.7&&t<8.35;const bedExit=ease(t,7.4,8.3);dreamSleeper.position.y=-4.1-bedExit*2.8;dreamSleeper.scale.setScalar(1-bedExit*.15);dreamSleeper.userData.setDistress(s.distress);dreamSleeper.userData.animate(t);
+  scene.background.copy(bedroom).lerp(day,s.rise).lerp(stormSky,s.storm);scene.fog.color.copy(scene.background);
+  sun.intensity=.3+s.rise*2.5-s.storm*2.45+(reduced?0:s.thunder*5);ambient.intensity=.8+s.rise-s.storm*.9;
+  cloudMaterial.color.set('#f6f7ed').lerp(new THREE.Color('#4c566f'),s.storm);grassMaterial.color.set('#91bd76').lerp(new THREE.Color('#607d78'),s.storm);
+  sunDisc.visible=s.rise>.7&&s.storm<.5;floor.visible=s.rise>.05;grassMaterial.opacity=s.rise;
+  clouds.forEach((c,i)=>{c.visible=s.rise>.05;c.position.x=(i-3.5)*8+Math.sin(t*.12+i)*.4;});
+  sheep.forEach((sheep,i)=>{
+   const runTime=reduced?2.8:t;sheep.position.set(((runTime*(i%2?1.0:-.85)+i*3.4+30)%18)-9,.15+Math.max(0,Math.sin(runTime*5+i))* .45,-8-i%3*3.5);
+   sheep.rotation.y=i%2?Math.PI/2:-Math.PI/2;sheep.userData.animate(runTime+i,s.storm>.5?0:1);sheep.visible=t>1.65;
+  });
+  rain.visible=s.storm>.01;rain.material.opacity=s.storm*.5;
+  if(rain.visible){for(let i=0;i<rainSeeds.length;i++){const [x,y,z]=rainSeeds[i],height=((y-t*13)%15+15)%15;rainPositions.set([x,height,z,x-.18,height-.65,z],i*6);}rainGeometry.attributes.position.needsUpdate=true;}
+  nightmare.visible=s.nightmare>.01;nightmare.scale.setScalar(Math.max(.001,s.nightmare));nightmare.rotation.z=Math.sin(t*2)*.07;
+  dollPortal.scale.setScalar(Math.max(.001,s.portal*1.5));dollPortal.visible=s.portal>.01;
+  heroLight.intensity=s.portal*12;
+  dolls.forEach((d,i)=>{
+    const a=ease(t,5.05+i*.12,5.8+i*.12);d.visible=a>0;
+    d.position.set(i===0?0:i===1?-1.9:1.9,-2.6*(1-a)+Math.sin(a*Math.PI)*1.3,-.5+a*(i?1.3:2));
+    d.rotation.y=-.3+(1-a)*.4;d.userData.animate(reduced?1:t,false,false);d.userData.pose({cheer:s.cheer*(1-ease(t,7.6,8.2)),land:s.landing,wave:0});
+  });
+  const shockActive=t>=6.05&&t<6.8;
+  shockRing.visible=shockActive;shockRing.scale.setScalar(.2+s.shock*8);shockRing.material.opacity=1-s.shock;
+  shockStars.visible=shockActive;shockStars.position.set(0,1.7,1);
+  shockStars.children.forEach((star,i)=>{const a=i/24*Math.PI*2,r=s.shock*6;star.position.set(Math.cos(a)*r,Math.sin(a)*r*.6,Math.sin(a*3)*s.shock);star.scale.setScalar(.08+(1-s.shock)*.18);star.rotation.z=a+s.shock*2;star.material.opacity=1-s.shock;});
+  ghosts.forEach((g,i)=>{
+   const beat=s.ghosts[i],x=[-2.6,.4,3][i],y=[2.1,2.8,2.2][i];
+   g.visible=beat.visible;g.position.set(3+(x-3)*beat.spawn+[-.9,0,.75][i]*beat.flight,y+beat.flight*4,-7+beat.spawn*3-beat.flight*3);g.rotation.z=(i-1)*beat.flight*4;g.scale.setScalar(.9*(1-beat.flight*.25));
+   const pop=pops[i];pop.visible=beat.burstVisible;pop.position.set(x+[-.9,0,.75][i],y+4,-7);
+   pop.children.forEach((star,j)=>{const a=j/9*Math.PI*2;star.position.set(Math.cos(a)*beat.burst*1.2,Math.sin(a)*beat.burst*1.2,0);star.scale.setScalar(.28*(1-beat.burst)+.02);star.rotation.z=a+beat.burst*3;star.material.opacity=1-beat.burst;});
+  });
+  if(!reduced){for(const [at,kind] of [[4.05,'thunder'],[4.42,'thunder'],[6.08,'cheer'],[7,'pop'],[7.25,'pop'],[7.5,'pop']])if(lastAudioTime<at&&t>=at)playEffect(kind);}lastAudioTime=t;
+  if(t===0)lastAudioTime=-1;
+  const width=canvas.clientWidth,height=canvas.clientHeight;
+  if(canvas.width!==Math.floor(width*renderer.getPixelRatio())||canvas.height!==Math.floor(height*renderer.getPixelRatio()))renderer.setSize(width,height,false);
+  const shot=openingShot(t,{mobile:width/height<.7,reduced});camera.aspect=width/height;camera.position.set(...shot.position);camera.lookAt(...shot.target);camera.fov=shot.fov;camera.updateProjectionMatrix();
+  renderer.render(scene,camera);if(t===INTRO_DURATION)finalSize=sizeKey;
+ }
  requestAnimationFrame(draw);
- if(!active||document.hidden){previous=undefined;return;}
- const dt=previous===undefined?0:Math.min((time-previous)/1000,.1);previous=time;
- if(!document.hidden)elapsed+=dt;
- const state=introState(elapsed,reduceMotion),t=state.time;
- const relief=state.relief,reveal=state.portal;
- const phase=t<1.45?1:t<3.1?4:5;
- if(lastCaption!==captions[phase]){caption.textContent=captions[phase];lastCaption=captions[phase];}
- nightmare.visible=relief<.9;nightmare.scale.setScalar(1-relief*.85);
- plushPortal.scale.setScalar(Math.max(.001,reveal*1.4));
- glow.intensity=reveal*(10+state.protect*10);
- for(let i=0;i<darkClouds.length;i++){
-   const p=darkClouds[i],f=(t*.3+i/12)%1;
-   p.position.set(Math.sin(i*2+f*4)*(f*1.4+.1),.1+f*5,6-f*10);
-   p.scale.setScalar((.3+f*.6)*(1-relief));p.visible=relief<.99;
- }
- dolls.forEach(d=>{
-   const f=state.arrival;
-   d.visible=f>0;d.position.set(0,.15+Math.sin(f*Math.PI)*.8,-1.8+f*4.4);
-   d.rotation.y=-.65+state.protect*1.1;
-   d.userData.animate(reduceMotion?1:elapsed,false,false);
-   d.userData.pose({protect:state.protect,land:state.landing,wave:state.wave*(.6+Math.sin(t*12)*.4)});
- });
- dolls[0].userData.protectionOrigin(protectionOrigin);
- charge.visible=state.protect>.05&&t<2.65;charge.position.copy(protectionOrigin);charge.scale.setScalar(.5+state.protect*.5);
- ghosts.forEach((g,i)=>{
-   const beat=state.ghosts[i];
-   g.visible=t>.1+i*.12&&beat.dissolve<1;
-   g.position.set(3.9-beat.approach*(1.8-i*.65)+beat.recoil*.6,2.7+i*.65+Math.sin(t*4+i)*.10+beat.recoil*.3,-7+beat.approach*6.5);
-   g.rotation.z=beat.recoil*(i?-.7:.7);g.scale.setScalar((1-beat.dissolve)*1.0);
-   const destination=new THREE.Vector3(2.1+i*.65,2.7+i*.65,-.5);
-   const source=protectionOrigin;
-   pulses[i].visible=beat.pulseVisible;
-   pulses[i].position.copy(source).lerp(destination,beat.pulse);
-   pulses[i].scale.setScalar(1+Math.sin(beat.pulse*Math.PI)*.3);
-   bursts[i].visible=beat.burstVisible;bursts[i].position.copy(destination);
-   bursts[i].children.forEach((star,j)=>{
-     const a=j/5*Math.PI*2;star.position.set(Math.cos(a)*beat.burst*.85,Math.sin(a)*beat.burst*.7,0);
-     star.rotation.z=beat.burst*(j%2?2:-2);star.material.opacity=1-beat.burst;
-   });
- });
- overlay.dataset.beat=t<1.45?'arrival':t<2.05?'protect':t<2.8?'impact':t<3.35?'relief':'settled';
- face.classList.toggle('peaceful',relief>.6);
- stars.material.opacity=.7+Math.sin(t*.5)*.12;
- if(t>=4){title.classList.add('visible');enter.hidden=false;}
- const width=canvas.clientWidth,height=canvas.clientHeight;
- if(canvas.width!==Math.floor(width*renderer.getPixelRatio())||canvas.height!==Math.floor(height*renderer.getPixelRatio()))renderer.setSize(width,height,false);camera.aspect=width/height;
- const shot=openingShot(elapsed,{mobile:width/height<.7,reduced:reduceMotion});
- camera.position.set(...shot.position);camera.lookAt(...shot.target);camera.fov=shot.fov;
- face.style.setProperty('--sleep-parallax',`${(1-shot.progress)*28}px`);
- face.style.setProperty('--sleep-scale',String(1.04-shot.progress*.04));
- overlay.dataset.shot=shot.progress>=1?'settled':'moving';
- camera.updateProjectionMatrix();renderer.render(scene,camera);
-}
-requestAnimationFrame(draw);
 }

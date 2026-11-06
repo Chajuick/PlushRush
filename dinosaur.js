@@ -111,8 +111,8 @@ export function createDinosaur({color='#8ebc94'}={}) {
     const right=arms[1].localToWorld(new THREE.Vector3(0,-.1,.1));
     return target.copy(right).add(new THREE.Vector3(0,0,.25).applyQuaternion(root.quaternion).multiplyScalar(root.scale.x));
   };
-  root.userData.pose=({protect=0,land=0,wave=0}={})=>{
-    arms.forEach((arm,i)=>{arm.position.y=.94+protect*.38;arm.rotation.x-=protect*.95;arm.rotation.z=(i?1:-1)*(protect*1.25+wave*.3);if(i===1)arm.rotation.x-=wave*.65;});
+  root.userData.pose=({protect=0,land=0,wave=0,cheer=0}={})=>{
+    arms.forEach((arm,i)=>{arm.position.x=(i?1:-1)*(.8-cheer*.12);arm.position.y=.94+protect*.38+cheer*.7;arm.rotation.x-=protect*.95+cheer*.2;arm.rotation.z=(i?1:-1)*(protect*1.25+wave*.3+cheer*2.3);if(i===1)arm.rotation.x-=wave*.65;});
     body.scale.y*=1-land*.14;body.scale.x*=1+land*.08;body.scale.z*=1+land*.08;
     body.rotation.y=protect*.18;body.rotation.z+=wave*.045;
   };
